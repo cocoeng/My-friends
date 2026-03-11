@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>朋友关系进化追踪器 - 视觉完美版</title>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --gradient: linear-gradient(to right, #3498db 0%, #2ecc71 20%, #f1c40f 40%, #f39c12 60%, #e67e22 80%, #e74c3c 100%);
+            --border-color: #e2e8f0;
+            --primary-blue: #1890ff;
+        }
+
+        body { font-family: 'PingFang SC', sans-serif; background: var(--bg-color); display: flex; flex-direction: column; align-items: center; padding: 40px; margin: 0; color: #334155; }
+
+        /* 轨道容器 */
+        .track-wrapper {
+            width: 1000px;
+            background: white;
+            padding: 130px 60px 70px 60px;
+            border-radius: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            position: relative;
+            margin-bottom: 40px;
+        }
+
+        .gradient-bar { width: 100%; height: 18px; background: var(--gradient); border-radius: 9px; position: relative; }
+        .stage-labels { display: flex; justify-content: space-between; margin-top: 30px; }
+        .stage-item { flex: 1; text-align: center; font-size: 13px; font-weight: bold; color: #94a3b8; }
+
+        /* 朋友节点 */
+        .friend-node {
+            position: absolute; top: -115px; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; z-index: 10;
+            transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .avatar-box { position: relative; width: 85px; height: 85px; cursor: pointer; }
+        .friend-node img { width: 85px; height: 85px; border-radius: 50%; border: 4px solid white; box-shadow: 0 6px 12px rgba(0,0,0,0.1); object-fit: cover; background: #eee; }
+        .del-btn {
+            position: absolute; top: -5px; right: -5px; background: #ff4d4f; color: white; border: 2px solid white;
+            border-radius: 50%; width: 22px; height: 22px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 20;
+        }
+        .name-tag { background: #334155; color: white; padding: 3px 12px; border-radius: 15px; font-size: 12px; margin: 8px 0; font-weight: bold; white-space: nowrap; }
+        .btn-group { display: flex; gap: 4px; }
+        .btn-s { border: none; padding: 4px 10px; border-radius: 6px; color: white; font-size: 11px; cursor: pointer; font-weight: bold; }
+        .btn-up { background: #52c41a; }
+        .btn-down { background: #faad14; }
+
+        /* 弹窗通用样式 */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(3px);
+        }
+        .modal-card { background: white; padding: 25px; border-radius: 20px; width: 350px; box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
+
+        /* 历史记录 */
+        .history-card { width: 450px; max-height: 70vh; overflow-y: auto; }
+        .history-item { padding: 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; }
+
+        /* 控制面板 - 重点修正这里 */
+        .control-panel {
+            background: white; padding: 30px; border-radius: 25px; display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 20px; width: 900px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); align-items: end;
+        }
+        .field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: bold; color: #475569; }
+        
+        /* 统一的输入框样式 */
+        input[type="text"], input[type="number"], .file-custom {
+            padding: 10px; border: 1.5px solid var(--border-color); border-radius: 8px; outline: none; transition: 0.3s;
+            font-size: 13px; background: #fff; box-sizing: border-box; width: 100%;
+        }
+        
+        input:focus { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(24,144,255,0.1); }
+
+        /* 美化上传框 */
+        input[type="file"]::-webkit-file-upload-button {
+            background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 8px; cursor: pointer;
+            margin-right: 10px; font-size: 12px; transition: 0.2s;
+        }
+        input[type="file"]::-webkit-file-upload-button:hover { background: #e2e8f0; }
+
+        .add-btn { grid-column: span 4; padding: 15px; background: var(--primary-blue); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        .add-btn:hover { background: #096dd9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(24,144,255,0.3); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🧬 朋友进化全纪录</h1>
+    <p style="color: #8c8c8c;">每一个刻度都记录着一段共同成长的时光</p>
+</header>
+
+<div class="track-wrapper">
+    <div class="gradient-bar" id="mainTrack"></div>
+    <div class="stage-labels">
+        <div class="stage-item">陌生人</div>
+        <div class="stage-item">普通朋友</div>
+        <div class="stage-item">熟悉的朋友</div>
+        <div class="stage-item">好朋友</div>
+        <div class="stage-item">死党/至交</div>
+        <div class="stage-item">人生伴侣</div>
+    </div>
+</div>
+
+<div id="adjustModal" class="modal-overlay">
+    <div class="modal-card">
+        <h3 id="modalTitle" style="margin:0 0 10px 0;">记录新事件</h3>
+        <div style="font-size:32px; font-weight:bold; color:#1890ff; margin:10px 0;" id="sliderVal">+10</div>
+        <input type="range" id="adjustSlider" min="1" max="50" value="10" style="width:100%" oninput="updateDisplay(this.value)">
+        <div style="text-align:left; margin:15px 0;">
+            <label style="font-size:12px; font-weight:bold;">发生时间</label>
+            <input type="text" id="evTime" class="file-custom" style="margin-top:5px;">
+            <label style="font-size:12px; font-weight:bold; display:block; margin-top:10px;">事件概述</label>
+            <input type="text" id="evDesc" class="file-custom" style="margin-top:5px;" placeholder="发生了什么？">
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="add-btn" style="grid-column:auto; flex:1; background:#e2e8f0; color:#64748b;" onclick="closeAllModals()">取消</button>
+            <button class="add-btn" style="grid-column:auto; flex:1;" onclick="applyAdjustment()">确认记录</button>
+        </div>
+    </div>
+</div>
+
+<div id="historyModal" class="modal-overlay">
+    <div class="modal-card history-card">
+        <h3 id="histTitle">成长日志</h3>
+        <div id="historyList"></div>
+        <button class="add-btn" style="margin-top:20px;" onclick="closeAllModals()">关闭日志</button>
+    </div>
+</div>
+
+<div class="control-panel">
+    <div class="field"><label>朋友姓名</label><input type="text" id="inName" placeholder="怎么称呼？"></div>
+    <div class="field"><label>上传头像</label><input type="file" id="inFile" class="file-custom"></div>
+    <div class="field"><label>初始亲密度</label><input type="number" id="inScore" value="15"></div>
+    <div class="field"><label>自动速度</label><input type="number" id="inSpeed" value="0.1" step="0.1"></div>
+    <button class="add-btn" onclick="addNewFriend()">✨ 开启关系档案</button>
+</div>
+
+<script>
+    let friends = [];
+    let curId = null;
+    let curDir = 1;
+    const DB_KEY = 'FRIEND_EVO_LOG_V7';
+
+    window.onload = () => {
+        const saved = localStorage.getItem(DB_KEY);
+        if (saved) { friends = JSON.parse(saved); render(); }
+    };
+
+    function save() { localStorage.setItem(DB_KEY, JSON.stringify(friends)); }
+    function getNow() { const d = new Date(); return `${d.getMonth()+1}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`; }
+
+    async function addNewFriend() {
+        const name = document.getElementById('inName').value;
+        const file = document.getElementById('inFile').files[0];
+        if (!name) return alert("名字必填哦");
+        let imgUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+        if (file) {
+            imgUrl = await new Promise(res => {
+                const reader = new FileReader();
+                reader.onload = () => res(reader.result);
+                reader.readAsDataURL(file);
+            });
+        }
+        friends.push({ id: Date.now(), name, avatar: imgUrl, score: parseFloat(document.getElementById('inScore').value) || 0, history: [{ time: getNow(), desc: '创建了关系档案', change: 0 }] });
+        save(); render();
+        document.getElementById('inName').value = "";
+        document.getElementById('inFile').value = "";
+    }
+
+    function openAdjust(id, dir) {
+        curId = id; curDir = dir;
+        document.getElementById('modalTitle').innerText = dir === 1 ? "记录互动 (+)" : "记录矛盾 (-)";
+        document.getElementById('evTime').value = getNow();
+        document.getElementById('evDesc').value = "";
+        updateDisplay(10);
+        document.getElementById('adjustModal').style.display = 'flex';
+    }
+
+    function openHistory(id) {
+        const f = friends.find(x => x.id === id);
+        if (!f) return;
+        document.getElementById('histTitle').innerText = `${f.name} 的日志`;
+        const list = document.getElementById('historyList');
+        list.innerHTML = f.history.map(h => `
+            <div class="history-item">
+                <div><div style="font-size:11px; color:#999;">${h.time}</div><div style="font-size:13px; font-weight:500;">${h.desc}</div></div>
+                <div style="font-weight:bold; color:${h.change >= 0 ? '#52c41a' : '#ff4d4f'}">${h.change > 0 ? '+' : ''}${h.change !== 0 ? h.change : ''}</div>
+            </div>
+        `).reverse().join('');
+        document.getElementById('historyModal').style.display = 'flex';
+    }
+
+    function updateDisplay(v) { document.getElementById('sliderVal').innerText = (curDir === 1 ? "+" : "-") + v; }
+    function closeAllModals() { document.getElementById('adjustModal').style.display = 'none'; document.getElementById('historyModal').style.display = 'none'; }
+
+    function applyAdjustment() {
+        const val = parseInt(document.getElementById('adjustSlider').value);
+        const f = friends.find(x => x.id === curId);
+        if (f) {
+            f.score = Math.min(100, Math.max(0, f.score + (val * curDir)));
+            f.history.push({ time: document.getElementById('evTime').value, desc: document.getElementById('evDesc').value || '未命名事件', change: (val * curDir) });
+            save(); render();
+        }
+        closeAllModals();
+    }
+
+    function deleteFriend(e, id) { e.stopPropagation(); if (confirm("确定要删除吗？数据不可恢复")) { friends = friends.filter(f => f.id !== id); save(); render(); } }
+
+    function render() {
+        const track = document.getElementById('mainTrack');
+        track.innerHTML = '';
+        friends.forEach(f => {
+            const node = document.createElement('div');
+            node.className = 'friend-node';
+            node.style.left = f.score + "%";
+            node.innerHTML = `
+                <div class="avatar-box" onclick="openHistory(${f.id})">
+                    <button class="del-btn" onclick="deleteFriend(event, ${f.id})">×</button>
+                    <img src="${f.avatar}">
+                </div>
+                <div class="name-tag" onclick="openHistory(${f.id})">${f.name} (${f.score.toFixed(1)}%)</div>
+                <div class="btn-group">
+                    <button class="btn-s btn-up" onclick="openAdjust(${f.id}, 1)">+ 互动</button>
+                    <button class="btn-s btn-down" onclick="openAdjust(${f.id}, -1)">- 矛盾</button>
+                </div>
+            `;
+            track.appendChild(node);
+        });
+    }
+
+    setInterval(() => {
+        const speed = parseFloat(document.getElementById('inSpeed').value) || 0;
+        if (friends.length > 0 && speed > 0) {
+            friends.forEach(f => { if (f.score < 100) f.score += (speed / 10); });
+            const nodes = document.getElementsByClassName('friend-node');
+            friends.forEach((f, i) => { if(nodes[i]) { nodes[i].style.left = f.score + "%"; nodes[i].querySelector('.name-tag').innerText = `${f.name} (${f.score.toFixed(1)}%)`; } });
+        }
+    }, 100);
+</script>
+</body>
+</html>
